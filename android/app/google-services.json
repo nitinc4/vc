@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "2251976977",
+    "project_id": "vcall-30196",
+    "storage_bucket": "vcall-30196.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:2251976977:android:27393c5c179652bfab5cb0",
+        "android_client_info": {
+          "package_name": "com.nitin.vc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEmRcW8QRAFCPXIK43yCKP5LxsaD0iDYA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

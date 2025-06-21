@@ -33,10 +33,14 @@ dependencies:
   agora_rtc_engine: ^6.2.2
   firebase_core: ^2.25.0
   firebase_messaging: ^14.7.2
-  flutter_local_notifications: ^16.3.0
-  awesome_notifications: ^0.8.2
+  flutter_local_notifications:
+   git:
+      url: https://github.com/MaikuB/flutter_local_notifications.git
+      path: flutter_local_notifications
+      ref: master
   permission_handler: ^11.0.1
   provider: ^6.1.1
+  
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
