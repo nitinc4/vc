@@ -74,21 +74,17 @@ class _CallScreenState extends State<CallScreen> {
     super.dispose();
   }
 
-  Widget _renderLocalPreview() {
-    print('🔍 Rendering local view with UID: ${widget.uid}');
-    return Container(
-      color: Colors.black,
-      child: _joined
-          ? AgoraVideoView(
-              controller: VideoViewController(
-                rtcEngine: _engine,
-                canvas: VideoCanvas(uid: widget.uid),
-              ),
-            )
-          : const Center(
-              child: Text('Joining channel...', style: TextStyle(color: Colors.white)),
-            ),
-    );
+ Widget _renderLocalPreview() {
+    if (_joined) {
+      return AgoraVideoView(
+        controller: VideoViewController(
+          rtcEngine: _engine,
+          canvas: const VideoCanvas(uid: 0),
+        ),
+      );
+    } else {
+      return const Center(child: Text('Joining channel...'));
+    }
   }
 
   Widget _renderRemoteVideo() {
