@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:vc/screens/call_screen.dart';
+import 'package:vc/screens/user_registration_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,7 +41,7 @@ class LocalNotificationService {
       onDidReceiveNotificationResponse: (details) {
         if (details.payload == 'call') {
           navigatorKey.currentState?.push(MaterialPageRoute(
-            builder: (_) => const CallScreen(),
+            builder: (_) => const CallScreen(), 
           ));
         }
       },
@@ -47,9 +49,11 @@ class LocalNotificationService {
 
     // Get FCM token
     String? token = await FirebaseMessaging.instance.getToken();
+    // ignore: avoid_print
     print('🔐 FCM Token: $token');
 
     FirebaseMessaging.onMessage.listen((message) {
+      // ignore: avoid_print
       print('📥 Foreground message: ${message.notification?.title}');
       showNotification(
         title: message.notification?.title ?? 'Call',
@@ -93,7 +97,7 @@ class MyApp extends StatelessWidget {
       title: 'Video Call App',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
+      home: const UserRegistrationScreen(),
     );
   }
 }
@@ -115,34 +119,6 @@ class HomeScreen extends StatelessWidget {
               body: 'User B is calling...',
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-/// Dummy call screen UI
-class CallScreen extends StatelessWidget {
-  const CallScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.videocam, color: Colors.white, size: 100),
-            const SizedBox(height: 20),
-            const Text('In Call with User B',
-                style: TextStyle(color: Colors.white, fontSize: 24)),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('End Call'),
-            )
-          ],
         ),
       ),
     );
