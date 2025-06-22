@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 const String appId = 'eebc91dcf2bc42ad9dbdc13c09f1a618';
 
@@ -24,8 +25,9 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable(); // Keep screen on during call
     _initAgora();
-  }
+}
 
   Future<void> _initAgora() async {
     await [Permission.microphone, Permission.camera].request();
@@ -69,10 +71,11 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    WakelockPlus.disable(); // Allow screen to sleep again
     _engine.leaveChannel();
     _engine.release();
     super.dispose();
-  }
+}
 
  Widget _renderLocalPreview() {
     if (_joined) {

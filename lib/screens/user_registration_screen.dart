@@ -1,7 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
-import 'package:vc/screens/home_screen_connected.dart';
+import './home_screen_connected.dart';
 
 class UserRegistrationScreen extends StatefulWidget {
   const UserRegistrationScreen({super.key});
@@ -11,65 +11,69 @@ class UserRegistrationScreen extends StatefulWidget {
 }
 
 class _UserRegistrationScreenState extends State<UserRegistrationScreen> {
-  final TextEditingController _usernameController = TextEditingController();
-  bool _isLoading = false;
+  final _controller = TextEditingController();
+  bool _loading = false;
 
-  Future<void> _registerUser() async {
-    final username = _usernameController.text.trim();
+  Future<void> _registerUser(String username) async {
     if (username.isEmpty) return;
 
-    setState(() => _isLoading = true);
+    setState(() => _loading = true);
 
-    try {
-      final fcmToken = await FirebaseMessaging.instance.getToken();
+    final fcmToken = await FirebaseMessaging.instance.getToken();
 
-      await FirebaseFirestore.instance.collection('users').doc(username).set({
-        'username': username,
-        'fcmToken': fcmToken,
-        'lastSeen': DateTime.now(),
-      });
+    await FirebaseFirestore.instance.collection('users').doc(username).set({
+      'username': username,
+      'fcmToken': fcmToken,
+    });
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => HomeScreenConnected(currentUsername: username),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeScreenConnected(currentUsername: username),
+      ),
+    );
+
+    setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
+      appBar: AppBar(title: const Text('Join Video Call')),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            const Text('Enter a unique username to start:',
-                style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: 'Username',
-                border: OutlineInputBorder(),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.account_circle, size: 80, color: Colors.tealAccent),
+              const SizedBox(height: 20),
+              const Text(
+                'Enter your username to start',
+                style: TextStyle(fontSize: 18),
               ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _registerUser,
-              child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Continue'),
-            )
-          ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: _controller,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Username',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _loading ? null : () => _registerUser(_controller.text.trim()),
+                icon: const Icon(Icons.login),
+                label: _loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Continue'),
+              )
+            ],
+          ),
         ),
       ),
     );

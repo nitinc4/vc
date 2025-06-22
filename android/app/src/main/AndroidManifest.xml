@@ -1,7 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.vc"> <!-- Replace with your actual package if needed -->
+    package="com.example.vc"> <!-- Replace with your actual package name -->
 
-    <!-- ✅ Permissions must be outside the <application> tag -->
+    <!-- ✅ Permissions (must be outside <application>) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -10,7 +12,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- ✅ Notification channel metadata -->
+        <!-- ✅ FCM notification channel -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="call_channel" />
@@ -36,13 +38,13 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ Required by Flutter engine -->
+        <!-- ✅ Flutter engine metadata -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
 
-    <!-- ✅ Required for text processing in newer Android versions -->
+    <!-- ✅ Required for Flutter's text plugins -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />

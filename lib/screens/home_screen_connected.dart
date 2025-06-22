@@ -1,9 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../main.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-// ignore: unused_import
-import 'package:firebase_core/firebase_core.dart';
+
 import './call_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -25,41 +22,40 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
     super.initState();
     usersRef = FirebaseFirestore.instance.collection('users');
   }
-Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
-  final channelId = 'call_${widget.currentUsername}_$receiverUsername';
 
-  // 1. Create a call record
-  await FirebaseFirestore.instance.collection('calls').doc(channelId).set({
-    'callerId': widget.currentUsername,
-    'receiverId': receiverUsername,
-    'channelId': channelId,
-    'status': 'ringing',
-    'timestamp': FieldValue.serverTimestamp(),
-  });
+  Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
+    final channelId = 'call_${widget.currentUsername}_$receiverUsername';
 
-  // 2. Send a notification to receiver
-  await sendPushMessage(
-    receiverFcmToken,
-    title: 'Incoming Call',
-    body: '${widget.currentUsername} is calling you...',
-  );
+    await FirebaseFirestore.instance.collection('calls').doc(channelId).set({
+      'callerId': widget.currentUsername,
+      'receiverId': receiverUsername,
+      'channelId': channelId,
+      'status': 'ringing',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
-  // 3. Navigate to CallScreen and pass required params
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => CallScreen(
-        channelId: channelId,
-        uid: 1, // Caller UID (callee will use 2)
+    await sendPushMessage(
+      receiverFcmToken,
+      title: 'Incoming Call',
+      body: '${widget.currentUsername} is calling you...',
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CallScreen(
+          channelId: channelId,
+          uid: 1,
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   Future<void> sendPushMessage(String token,
       {required String title, required String body}) async {
     final url = Uri.parse(
       'https://us-central1-vcall-30196.cloudfunctions.net/sendCallNotification',
-    ); // Replace with your actual URL if different
+    );
 
     final response = await http.post(
       url,
@@ -81,24 +77,33 @@ Future<void> _startCall(String receiverUsername, String receiverFcmToken) async 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Hello ${widget.currentUsername}')),
+      appBar: AppBar(title: Text('Welcome, ${widget.currentUsername}')),
       body: StreamBuilder<QuerySnapshot>(
         stream: usersRef.snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const CircularProgressIndicator();
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-          final users = snapshot.data!.docs.where(
-            (doc) => doc.id != widget.currentUsername,
-          ); // exclude self
+          final users = snapshot.data!.docs.where((doc) => doc.id != widget.currentUsername);
+
+          if (users.isEmpty) {
+            return const Center(
+              child: Text('No other users online', style: TextStyle(color: Colors.grey)),
+            );
+          }
 
           return ListView(
+            padding: const EdgeInsets.all(12),
             children: users.map((userDoc) {
               final username = userDoc['username'];
               final fcmToken = userDoc['fcmToken'];
-              return ListTile(
-                title: Text(username),
-                trailing: const Icon(Icons.call),
-                onTap: () => _startCall(username, fcmToken),
+              return Card(
+                color: Colors.grey[900],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: ListTile(
+                  title: Text(username, style: const TextStyle(color: Colors.white)),
+                  trailing: const Icon(Icons.video_call, color: Colors.tealAccent),
+                  onTap: () => _startCall(username, fcmToken),
+                ),
               );
             }).toList(),
           );
