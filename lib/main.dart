@@ -2,21 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vc/screens/call_screen.dart';
 import 'package:vc/screens/user_registration_screen.dart';
 
-void main() async {
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-
   await LocalNotificationService.initialize();
-
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
   runApp(const MyApp());
 }
 
-/// Background handler for FCM
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   LocalNotificationService.showNotification(
@@ -25,7 +24,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
 }
 
-/// Notification helper class
 class LocalNotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
 
@@ -38,33 +36,52 @@ class LocalNotificationService {
 
     await _plugin.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: (details) {
+      onDidReceiveNotificationResponse: (details) async {
         if (details.payload == 'call') {
-          navigatorKey.currentState?.push(MaterialPageRoute(
-            builder: (_) => const CallScreen(), 
-          ));
+          final callSnap = await FirebaseFirestore.instance
+              .collection('calls')
+              .where('status', isEqualTo: 'ringing')
+              .orderBy('timestamp', descending: true)
+              .limit(1)
+              .get();
+
+          if (callSnap.docs.isNotEmpty) {
+            final call = callSnap.docs.first.data();
+            final channelId = call['channelId'] ?? '';
+            navigatorKey.currentState?.push(MaterialPageRoute(
+              builder: (_) => CallScreen(channelId: channelId, uid: 2),
+            ));
+          }
         }
       },
     );
 
-    // Get FCM token
     String? token = await FirebaseMessaging.instance.getToken();
-    // ignore: avoid_print
     print('🔐 FCM Token: $token');
 
     FirebaseMessaging.onMessage.listen((message) {
-      // ignore: avoid_print
-      print('📥 Foreground message: ${message.notification?.title}');
+      print('📥 Foreground FCM: ${message.notification?.title}');
       showNotification(
         title: message.notification?.title ?? 'Call',
         body: message.notification?.body ?? 'Incoming call',
       );
     });
 
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      navigatorKey.currentState?.push(MaterialPageRoute(
-        builder: (_) => const CallScreen(),
-      ));
+    FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+      final callSnap = await FirebaseFirestore.instance
+          .collection('calls')
+          .where('status', isEqualTo: 'ringing')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      if (callSnap.docs.isNotEmpty) {
+        final call = callSnap.docs.first.data();
+        final channelId = call['channelId'] ?? '';
+        navigatorKey.currentState?.push(MaterialPageRoute(
+          builder: (_) => CallScreen(channelId: channelId, uid: 2),
+        ));
+      }
     });
   }
 
@@ -80,13 +97,9 @@ class LocalNotificationService {
     );
 
     const NotificationDetails details = NotificationDetails(android: androidDetails);
-
     await _plugin.show(0, title, body, details, payload: 'call');
   }
 }
-
-/// Global navigator key to navigate from background
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -98,29 +111,6 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       home: const UserRegistrationScreen(),
-    );
-  }
-}
-
-/// Simple home screen to simulate user
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('User A')),
-      body: Center(
-        child: ElevatedButton(
-          child: const Text('Simulate Incoming Call'),
-          onPressed: () {
-            LocalNotificationService.showNotification(
-              title: 'Incoming Call',
-              body: 'User B is calling...',
-            );
-          },
-        ),
-      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+// ✅ Updated call_screen.dart with fixed local preview
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
@@ -8,11 +9,7 @@ class CallScreen extends StatefulWidget {
   final String channelId;
   final int uid;
 
-  const CallScreen({
-    super.key,
-    required this.channelId,
-    required this.uid,
-  });
+  const CallScreen({super.key, required this.channelId, required this.uid});
 
   @override
   State<CallScreen> createState() => _CallScreenState();
@@ -38,33 +35,35 @@ class _CallScreenState extends State<CallScreen> {
 
     _engine.registerEventHandler(RtcEngineEventHandler(
       onJoinChannelSuccess: (connection, elapsed) {
-        debugPrint("✅ Local user joined: ${connection.localUid}");
         setState(() {
           _joined = true;
         });
+        print('✅ Joined channel: ${widget.channelId}, UID: ${widget.uid}');
       },
       onUserJoined: (connection, remoteUid, elapsed) {
-        debugPrint("👤 Remote user joined: $remoteUid");
         setState(() {
           _remoteUid = remoteUid;
         });
+        print('👤 Remote user joined: $remoteUid');
       },
       onUserOffline: (connection, remoteUid, reason) {
-        debugPrint("❌ Remote user left: $remoteUid");
         setState(() {
           _remoteUid = null;
         });
+        print('🚪 User left: $remoteUid');
       },
     ));
 
     await _engine.enableVideo();
-    await _engine.startPreview();
 
     await _engine.joinChannel(
       token: '',
       channelId: widget.channelId,
       uid: widget.uid,
-      options: const ChannelMediaOptions(),
+      options: const ChannelMediaOptions(
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ),
     );
   }
 
@@ -76,16 +75,20 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Widget _renderLocalPreview() {
-    if (_joined) {
-      return AgoraVideoView(
-        controller: VideoViewController(
-          rtcEngine: _engine,
-          canvas: VideoCanvas(uid: widget.uid),
-        ),
-      );
-    } else {
-      return const Center(child: Text('Joining channel...'));
-    }
+    print('🔍 Rendering local view with UID: ${widget.uid}');
+    return Container(
+      color: Colors.black,
+      child: _joined
+          ? AgoraVideoView(
+              controller: VideoViewController(
+                rtcEngine: _engine,
+                canvas: VideoCanvas(uid: widget.uid),
+              ),
+            )
+          : const Center(
+              child: Text('Joining channel...', style: TextStyle(color: Colors.white)),
+            ),
+    );
   }
 
   Widget _renderRemoteVideo() {
@@ -93,12 +96,12 @@ class _CallScreenState extends State<CallScreen> {
       return AgoraVideoView(
         controller: VideoViewController.remote(
           rtcEngine: _engine,
-          canvas: VideoCanvas(uid: _remoteUid!),
+          canvas: VideoCanvas(uid: _remoteUid),
           connection: RtcConnection(channelId: widget.channelId),
         ),
       );
     } else {
-      return const Center(child: Text('Waiting for user to join...'));
+      return const Center(child: Text('Waiting for user to join...', style: TextStyle(color: Colors.white)));
     }
   }
 
