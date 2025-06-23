@@ -5,40 +5,38 @@ import 'package:vc/screens/user_registration_screen.dart';
 import 'package:vc/services/notification_service.dart';
 import 'package:vc/services/permissions_service.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Request permissions for camera, mic, and notifications
+  // 🔓 Request permissions for camera, mic, and notifications
   await PermissionsService.requestAllPermissions();
 
-  // Initialize FCM + Local Notifications + Routing
+  // 🔔 Initialize FCM, Local Notifications & Routing
   await NotificationService.init();
 
-  // Background FCM handler
+  // ⏮️ Background message handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());
 }
 
-/// 🔔 Background handler for FCM notifications
+/// 🔕 Handles background FCM messages
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  NotificationService.showNotification(
+
+  final data = message.data;
+  final callerId = data['callerId'] ?? 'unknown';
+  final channelId = data['channelId'] ?? 'default_channel';
+
+  await NotificationService.showNotification(
     title: message.notification?.title ?? 'Call',
     body: message.notification?.body ?? 'Incoming call',
-    payload: _generatePayloadFromData(message.data),
+    payload: 'call|$callerId|$channelId',
   );
 }
 
-/// 📦 Helper to encode payload for routing
-String _generatePayloadFromData(Map<String, dynamic> data) {
-  final callerId = data['callerId'] ?? 'unknown';
-  final channelId = data['channelId'] ?? 'default_channel';
-  return 'call|$callerId|$channelId';
-}
-
-/// 🌙 Root App
+/// 🧱 Main App Entry
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

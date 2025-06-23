@@ -38,8 +38,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => CallScreen(
-          channelId: widget.channelId,
+          channelId: 'default_channel',
           uid: 2,
+          initialRemoteUid: null, // can be null initially
         ),
       ),
     );

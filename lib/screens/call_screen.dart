@@ -1,4 +1,3 @@
-// ✅ Updated call_screen.dart with fixed local preview
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
@@ -9,8 +8,14 @@ const String appId = 'eebc91dcf2bc42ad9dbdc13c09f1a618';
 class CallScreen extends StatefulWidget {
   final String channelId;
   final int uid;
+  final int? initialRemoteUid;
 
-  const CallScreen({super.key, required this.channelId, required this.uid});
+  const CallScreen({
+    super.key,
+    required this.channelId,
+    required this.uid,
+    this.initialRemoteUid,
+  });
 
   @override
   State<CallScreen> createState() => _CallScreenState();
@@ -25,9 +30,10 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
-    WakelockPlus.enable(); // Keep screen on during call
+    WakelockPlus.enable();
+    _remoteUid = widget.initialRemoteUid;
     _initAgora();
-}
+  }
 
   Future<void> _initAgora() async {
     await [Permission.microphone, Permission.camera].request();
@@ -37,21 +43,15 @@ class _CallScreenState extends State<CallScreen> {
 
     _engine.registerEventHandler(RtcEngineEventHandler(
       onJoinChannelSuccess: (connection, elapsed) {
-        setState(() {
-          _joined = true;
-        });
+        setState(() => _joined = true);
         print('✅ Joined channel: ${widget.channelId}, UID: ${widget.uid}');
       },
       onUserJoined: (connection, remoteUid, elapsed) {
-        setState(() {
-          _remoteUid = remoteUid;
-        });
+        setState(() => _remoteUid = remoteUid);
         print('👤 Remote user joined: $remoteUid');
       },
       onUserOffline: (connection, remoteUid, reason) {
-        setState(() {
-          _remoteUid = null;
-        });
+        setState(() => _remoteUid = null);
         print('🚪 User left: $remoteUid');
       },
     ));
@@ -71,13 +71,13 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
-    WakelockPlus.disable(); // Allow screen to sleep again
+    WakelockPlus.disable();
     _engine.leaveChannel();
     _engine.release();
     super.dispose();
-}
+  }
 
- Widget _renderLocalPreview() {
+  Widget _renderLocalPreview() {
     if (_joined) {
       return AgoraVideoView(
         controller: VideoViewController(
@@ -90,19 +90,22 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  Widget _renderRemoteVideo() {
-    if (_remoteUid != null) {
-      return AgoraVideoView(
-        controller: VideoViewController.remote(
-          rtcEngine: _engine,
-          canvas: VideoCanvas(uid: _remoteUid),
-          connection: RtcConnection(channelId: widget.channelId),
-        ),
-      );
-    } else {
-      return const Center(child: Text('Waiting for user to join...', style: TextStyle(color: Colors.white)));
-    }
+ Widget _renderRemoteVideo() {
+  if (_remoteUid != null) {
+    return AgoraVideoView(
+      controller: VideoViewController.remote(
+        rtcEngine: _engine,
+        canvas: VideoCanvas(uid: _remoteUid!),
+        connection: RtcConnection(channelId: widget.channelId),
+      ),
+    );
+  } else {
+    print('⏳ Waiting for remote user to join...');
+    return const Center(
+      child: Text('Waiting for user to join...', style: TextStyle(color: Colors.white)),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -133,10 +136,7 @@ class _CallScreenState extends State<CallScreen> {
                   FloatingActionButton(
                     heroTag: 'mute',
                     backgroundColor: Colors.white,
-                    child: Icon(
-                      _muted ? Icons.mic_off : Icons.mic,
-                      color: Colors.black,
-                    ),
+                    child: Icon(_muted ? Icons.mic_off : Icons.mic, color: Colors.black),
                     onPressed: () {
                       _engine.muteLocalAudioStream(!_muted);
                       setState(() => _muted = !_muted);

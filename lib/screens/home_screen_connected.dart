@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
+import '../main.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+// ignore: unused_import
+import 'package:firebase_core/firebase_core.dart';
 import './call_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -24,14 +27,12 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
   }
 
   Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
-    final channelId = 'call_${widget.currentUsername}_$receiverUsername';
+    const channelId = 'default_channel';
 
     await FirebaseFirestore.instance.collection('calls').doc(channelId).set({
       'callerId': widget.currentUsername,
       'receiverId': receiverUsername,
       'channelId': channelId,
-      'status': 'ringing',
-      'timestamp': FieldValue.serverTimestamp(),
     });
 
     await sendPushMessage(
@@ -44,7 +45,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
       context,
       MaterialPageRoute(
         builder: (_) => CallScreen(
-          channelId: channelId,
+          channelId: 'default_channel',
           uid: 1,
         ),
       ),
