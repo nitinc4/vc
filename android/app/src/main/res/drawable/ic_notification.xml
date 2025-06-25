@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
-        <bitmap android:src="@mipmap/ic_launcher" android:tint="#0955fa"/> </item>
+        <bitmap android:src="@mipmap/ic_launcher" android:tint="#0955fa"/>
+    </item>
 </selector>

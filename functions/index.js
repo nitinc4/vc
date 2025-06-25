@@ -32,10 +32,10 @@ exports.sendCallNotification = functions.https.onRequest(async (req, res) => {
 
   try {
     const response = await admin.messaging().send(message);
-    console.log("Successfully sent FCM message:", response);
+    console.log(`FCM sent successfully to token: ${fcmToken}, callerId: ${callerId}, channelId: ${channelId}, callkitId: ${callkitId}`);
     return res.status(200).send("Notification sent successfully");
   } catch (error) {
-    console.error("Error sending FCM:", error);
+    console.error(`Error sending FCM to token ${fcmToken}:`, error);
     return res.status(500).send(`Failed to send notification: ${error.message}`);
   }
 });

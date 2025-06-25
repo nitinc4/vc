@@ -92,16 +92,16 @@ void setupCallkitListeners() {
 
     switch (eventType) {
       case Event.actionCallIncoming:
-        // Debounce subsequent ACTION_CALL_INCOMING events with the same ID
+        // ✅ REVISED DEBOUNCE LOGIC FOR ACTION_CALL_INCOMING
         if (_processedCallKitIds.contains(callkitId)) {
-          print('DEBUG: Already processed ACTION_CALL_INCOMING for ID: $callkitId. Skipping.');
-          return;
+          print('DEBUG: Skipping duplicate ACTION_CALL_INCOMING event for ID: $callkitId. Already processed.');
+          return; // Exit immediately if this ID is already in the set
         }
-        _processedCallKitIds.add(callkitId); // Mark as processed
-        print('DEBUG: Processing new ACTION_CALL_INCOMING for ID: $callkitId.');
+        _processedCallKitIds.add(callkitId); // Add the ID to the set as we are about to process it for the first time.
+        print('DEBUG: Processing FIRST (and only) ACTION_CALL_INCOMING event for ID: $callkitId.');
         // At this point, LocalNotificationService.showIncomingCallNotification has already been called
         // by the FirebaseMessaging.onMessage or firebaseMessagingBackgroundHandler listener.
-        break;
+        break; 
 
       case Event.actionCallAccept:
         if (_callAcceptanceTimer != null && _callAcceptanceTimer!.isActive) {

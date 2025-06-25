@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+// ignore: unused_import
+import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart'; // Make sure this is in your pubspec.yaml
 import './call_screen.dart';
 import 'dart:convert';
@@ -31,11 +34,11 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
 
   Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
     if (_isCalling) {
-      print('DEBUG: Call already in progress, skipping duplicate initiation.');
-      return;
+      print('DEBUG: Call initiation already in progress. Ignoring duplicate tap.');
+      return; // Prevent re-entry if _isCalling is already true
     }
     setState(() {
-      _isCalling = true; // Set calling state to true
+      _isCalling = true; // Immediately set to true to disable button and prevent re-entry
     });
 
     final uuid = const Uuid();
@@ -44,6 +47,14 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
 
     // Get the caller's UID
     final callerUid = _generateUidFromUsername(widget.currentUsername);
+
+    print('DEBUG: CALL INITIATION START');
+    print('DEBUG: Current User (Caller) Username: ${widget.currentUsername}');
+    print('DEBUG: Current User (Caller) FCM Token: ${await FirebaseMessaging.instance.getToken()}'); // Added for debugging
+    print('DEBUG: Intended Receiver Username: $receiverUsername');
+    print('DEBUG: Intended Receiver FCM Token: $receiverFcmToken'); // Added for debugging
+    print('DEBUG: Generated Channel ID: $channelId');
+    print('DEBUG: Generated CallKit UUID: $callkitUuid');
 
     try {
       // Create call document in Firestore
@@ -55,7 +66,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         'timestamp': FieldValue.serverTimestamp(),
         'status': 'initiated',
       });
-      print('DEBUG: Call document created for channel: $channelId, CallKit ID: $callkitUuid');
+      print('DEBUG: Firestore call document created successfully.');
     } catch (e) {
       print('ERROR: Failed to create call document: $e');
       if (mounted) {
@@ -71,6 +82,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
 
     try {
       // Send push message with unique channelId and callerId in data payload
+      print('DEBUG: Attempting to send push message...');
       await sendPushMessage(
         receiverFcmToken,
         title: 'Incoming Call',
@@ -79,8 +91,9 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         channelId: channelId, // Pass the unique channelId
         callkitId: callkitUuid, // Pass CallKit ID to FCM for receiver to use
       );
+      print('DEBUG: Push message function called. Waiting for response...');
     } catch (e) {
-      print('ERROR: Failed to send push message: $e');
+      print('ERROR: sendPushMessage failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send call notification (FCM): $e')),
@@ -93,7 +106,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
     }
 
     // Navigate to the call screen for the caller
-    if (mounted) {
+    if (mounted) { // Check if widget is still mounted before navigation
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -103,14 +116,17 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
           ),
         ),
       ).then((_) {
-        // This callback is called when CallScreen is popped
+        // This 'then' block executes when CallScreen is popped/disposed
+        print('DEBUG: CallScreen popped. Resetting _isCalling state.');
         setState(() {
-          _isCalling = false; // Reset state when call screen is closed
+          _isCalling = false; // Reset state when call ends
         });
       });
     } else {
+      // If widget unmounted before push, ensure _isCalling is reset
+      print('DEBUG: Widget unmounted before navigation. Resetting _isCalling state.');
       setState(() {
-        _isCalling = false; // Reset state if widget is unmounted unexpectedly
+        _isCalling = false;
       });
     }
   }
@@ -225,9 +241,9 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
                       size: 28,
                     ),
                   ),
-                  onTap: (isOnline && !_isCalling) // Disable tap if user is offline or already calling
+                  onTap: (isOnline && !_isCalling) // Disable tap if user is offline OR already calling
                       ? () => _startCall(username, fcmToken!)
-                      : null, // Set onTap to null to disable interaction
+                      : null, // Set onTap to null to visually and functionally disable interaction
                   enabled: isOnline && !_isCalling, // Visually disable if user is offline or already calling
                 ),
               );
