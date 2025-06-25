@@ -3,10 +3,23 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vc/main.dart'; // Corrected import to access processedCallKitIds
+import 'package:flutter/foundation.dart'; // Added for debugPrint
 
 class LocalNotificationService {
   static Future<void> showIncomingCallNotification(String callerId, String channelId, {String? incomingCallkitId}) async {
     final uuid = incomingCallkitId ?? const Uuid().v4(); // Use provided ID from FCM or generate new if not provided
+
+    // CRITICAL DEBOUNCE: Check if this CallKit ID has already been processed to avoid duplicate notifications
+    if (processedCallKitIds.contains(uuid)) { // Updated variable name
+      debugPrint('DEBUG: showIncomingCallNotification: Skipping duplicate notification for CallKit ID: $uuid. Already processed in this app session.');
+      return;
+    }
+
+    // Add the ID to the set to mark it as processed before attempting to show the notification
+    processedCallKitIds.add(uuid); // Updated variable name
+    debugPrint('DEBUG: showIncomingCallNotification: Preparing to show notification for CallKit ID: $uuid');
+
 
     final params = CallKitParams.fromJson({
       'id': uuid, // Use the ID passed from FCM (or generated)
@@ -46,7 +59,14 @@ class LocalNotificationService {
       }
     });
 
-    await FlutterCallkitIncoming.showCallkitIncoming(params);
+    try {
+      await FlutterCallkitIncoming.showCallkitIncoming(params);
+      debugPrint('DEBUG: showIncomingCallNotification: Successfully showed CallKit Incoming UI for ID: $uuid');
+    } catch (e) {
+      debugPrint('ERROR: Failed to show CallKit Incoming UI for ID: $uuid - $e');
+      // If showing fails, remove from processed IDs so it can be retried if another FCM comes
+      processedCallKitIds.remove(uuid); // Updated variable name
+    }
   }
 }
 
@@ -58,6 +78,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final callerId = data['callerId'] ?? 'Unknown Caller'; // Provide a better default if possible
   final channelId = data['channelId'] ?? 'default_channel'; // Fallback, but should always be provided by backend
   final callkitId = data['callkitId']; // Get CallKit ID from FCM
-  print('DEBUG: Handling background FCM: Caller: $callerId, Channel: $channelId, CallKit ID: $callkitId, Message Data: $data');
+  debugPrint('DEBUG: Handling background FCM: Caller: $callerId, Channel: $channelId, CallKit ID: $callkitId, Message Data: $data');
   await LocalNotificationService.showIncomingCallNotification(callerId, channelId, incomingCallkitId: callkitId); // Pass the ID
 }

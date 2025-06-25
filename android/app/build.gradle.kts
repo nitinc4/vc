@@ -4,10 +4,11 @@ plugins {
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+    
 }
 
 android {
-    namespace = "com.example.vc"
+    namespace = "com.nitin.vc"
     compileSdk = 35
 
     defaultConfig {
@@ -63,6 +64,17 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-    // REMOVED: implementation("com.google.firebase:firebase-messaging:23.2.1")
-    // As discussed, prefer FlutterFire plugins to manage Firebase SDK versions automatically.
+   
+    // >>>>> ENSURE THESE FIREBASE DEPENDENCIES ARE PRESENT AND UNCOMMENTED <<<<<
+    // Import the Firebase BoM (Bill of Materials)
+    // This ensures all your Firebase libraries use compatible versions.
+    // ALWAYS CHECK THE LATEST STABLE VERSION ON FIREBASE DOCUMENTATION!
+    implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.15.0"))
+
+    // Add the dependencies for the Firebase products your app uses.
+    // When using the BoM, you DO NOT specify versions for these individual Firebase libraries:
+    implementation("com.google.firebase:firebase-auth")       // For Firebase Authentication
+    implementation("com.google.firebase:firebase-firestore")  // For Cloud Firestore
+    implementation("com.google.firebase:firebase-messaging")  // For Firebase Cloud Messaging
+    // Add any other Firebase products your app uses here (e.g., firebase-analytics, firebase-storage, etc.)
 }

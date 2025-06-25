@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'home_screen_connected.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:vc/screens/home_screen_connected.dart'; // Corrected import
 
 class UserRegistrationScreen extends StatefulWidget {
   const UserRegistrationScreen({super.key});
@@ -13,62 +13,65 @@ class UserRegistrationScreen extends StatefulWidget {
 
 class _UserRegistrationScreenState extends State<UserRegistrationScreen> {
   final TextEditingController _usernameController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUsername();
-  }
+  String? _errorMessage;
 
-  Future<void> _loadUsername() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedUsername = prefs.getString('username');
-    if (savedUsername != null && savedUsername.isNotEmpty) {
-      _navigateToHome(savedUsername);
+  Future<void> _registerUser() async {
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      setState(() {
+        _errorMessage = 'Username cannot be empty.';
+      });
+      return;
     }
-  }
 
-  Future<void> _saveUsernameAndFCM(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('username', username);
+    setState(() {
+      _errorMessage = null; // Clear previous errors
+    });
 
-    final fcmToken = await FirebaseMessaging.instance.getToken();
-    if (fcmToken != null) {
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(username).set({
+    try {
+      // 1. Sign in anonymously (or use your preferred auth method)
+      UserCredential userCredential = await _auth.signInAnonymously();
+      User? user = userCredential.user;
+
+      if (user != null) {
+        // 2. Get FCM token
+        String? fcmToken = await _firebaseMessaging.getToken();
+        debugPrint("FCM Token: $fcmToken");
+
+        // 3. Store username and FCM token in Firestore
+        await _firestore.collection('users').doc(username).set({
           'username': username,
           'fcmToken': fcmToken,
-          'lastLogin': FieldValue.serverTimestamp(), // Optional: track last login
-        }, SetOptions(merge: true)); // Use merge to update if doc exists, or create if not
-        print('✅ Saved $username with token $fcmToken to Firestore');
-      } catch (e) {
-        print('❌ Failed to save to Firestore: $e');
+          'uid': user.uid, // Store Firebase Auth UID
+          'lastActive': FieldValue.serverTimestamp(),
+        });
+        debugPrint('User registered and data saved to Firestore.');
+
+        // 4. Navigate to connected screen
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HomeScreenConnected(currentUsername: username),
+            ),
+          );
+        }
       }
-    } else {
-      print('❌ Failed to get FCM token');
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth Error: ${e.message}');
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      debugPrint('Error registering user: $e');
+      setState(() {
+        _errorMessage = 'An unexpected error occurred: $e';
+      });
     }
-  }
-
-  void _onSubmit() async {
-    final username = _usernameController.text.trim();
-    if (username.isNotEmpty) {
-      await _saveUsernameAndFCM(username);
-      _navigateToHome(username);
-    } else {
-      // Show an error or toast if username is empty
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Username cannot be empty!')),
-      );
-    }
-  }
-
-  void _navigateToHome(String username) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => HomeScreenConnected(currentUsername: username),
-      ),
-    );
   }
 
   @override
@@ -80,55 +83,47 @@ class _UserRegistrationScreenState extends State<UserRegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('Register Username')),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Enter your username',
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
+            children: <Widget>[
               TextField(
                 controller: _usernameController,
-                style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.grey[850],
-                  hintText: 'Username',
-                  hintStyle: const TextStyle(color: Colors.grey),
+                  labelText: 'Enter your username',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none, // Remove default border
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
-                  ),
+                  prefixIcon: const Icon(Icons.person),
                 ),
-                textInputAction: TextInputAction.done, // Adds a done button to keyboard
-                onSubmitted: (_) => _onSubmit(), // Call onSubmit when done is pressed
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _onSubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent, // Button color
-                  foregroundColor: Colors.white, // Text color
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+                    textAlign: TextAlign.center,
                   ),
-                  elevation: 5, // Add a slight shadow
                 ),
-                child: const Text(
-                  'Continue',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _registerUser,
+                icon: const Icon(Icons.login),
+                label: const Text(
+                  'Register and Connect',
+                  style: TextStyle(fontSize: 18),
                 ),
-              )
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

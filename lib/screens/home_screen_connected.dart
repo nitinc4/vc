@@ -4,7 +4,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 // ignore: unused_import
 import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart'; // Make sure this is in your pubspec.yaml
-import './call_screen.dart';
+import 'package:vc/screens/call_screen.dart'; // Corrected import
+import 'package:vc/services/notification_service.dart'; // Added import for notification_service
+import 'package:vc/services/permissions_service.dart'; // Added import for permissions_service
+import 'package:vc/screens/user_registration_screen.dart'; // Added import for user_registration_screen
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -34,7 +37,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
 
   Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
     if (_isCalling) {
-      print('DEBUG: Call initiation already in progress. Ignoring duplicate tap.');
+      debugPrint('DEBUG: Call initiation already in progress. Ignoring duplicate tap.');
       return; // Prevent re-entry if _isCalling is already true
     }
     setState(() {
@@ -48,13 +51,13 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
     // Get the caller's UID
     final callerUid = _generateUidFromUsername(widget.currentUsername);
 
-    print('DEBUG: CALL INITIATION START');
-    print('DEBUG: Current User (Caller) Username: ${widget.currentUsername}');
-    print('DEBUG: Current User (Caller) FCM Token: ${await FirebaseMessaging.instance.getToken()}'); // Added for debugging
-    print('DEBUG: Intended Receiver Username: $receiverUsername');
-    print('DEBUG: Intended Receiver FCM Token: $receiverFcmToken'); // Added for debugging
-    print('DEBUG: Generated Channel ID: $channelId');
-    print('DEBUG: Generated CallKit UUID: $callkitUuid');
+    debugPrint('DEBUG: CALL INITIATION START');
+    debugPrint('DEBUG: Current User (Caller) Username: ${widget.currentUsername}');
+    debugPrint('DEBUG: Current User (Caller) FCM Token: ${await FirebaseMessaging.instance.getToken()}'); // Added for debugging
+    debugPrint('DEBUG: Intended Receiver Username: $receiverUsername');
+    debugPrint('DEBUG: Intended Receiver FCM Token: $receiverFcmToken'); // Added for debugging
+    debugPrint('DEBUG: Generated Channel ID: $channelId');
+    debugPrint('DEBUG: Generated CallKit UUID: $callkitUuid');
 
     try {
       // Create call document in Firestore
@@ -66,9 +69,9 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         'timestamp': FieldValue.serverTimestamp(),
         'status': 'initiated',
       });
-      print('DEBUG: Firestore call document created successfully.');
+      debugPrint('DEBUG: Firestore call document created successfully.');
     } catch (e) {
-      print('ERROR: Failed to create call document: $e');
+      debugPrint('ERROR: Failed to create call document: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to initiate call (Firestore): $e')),
@@ -82,7 +85,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
 
     try {
       // Send push message with unique channelId and callerId in data payload
-      print('DEBUG: Attempting to send push message...');
+      debugPrint('DEBUG: Attempting to send push message...');
       await sendPushMessage(
         receiverFcmToken,
         title: 'Incoming Call',
@@ -91,9 +94,9 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         channelId: channelId, // Pass the unique channelId
         callkitId: callkitUuid, // Pass CallKit ID to FCM for receiver to use
       );
-      print('DEBUG: Push message function called. Waiting for response...');
+      debugPrint('DEBUG: Push message function called. Waiting for response...');
     } catch (e) {
-      print('ERROR: sendPushMessage failed: $e');
+      debugPrint('ERROR: sendPushMessage failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send call notification (FCM): $e')),
@@ -117,14 +120,14 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         ),
       ).then((_) {
         // This 'then' block executes when CallScreen is popped/disposed
-        print('DEBUG: CallScreen popped. Resetting _isCalling state.');
+        debugPrint('DEBUG: CallScreen popped. Resetting _isCalling state.');
         setState(() {
           _isCalling = false; // Reset state when call ends
         });
       });
     } else {
       // If widget unmounted before push, ensure _isCalling is reset
-      print('DEBUG: Widget unmounted before navigation. Resetting _isCalling state.');
+      debugPrint('DEBUG: Widget unmounted before navigation. Resetting _isCalling state.');
       setState(() {
         _isCalling = false;
       });
@@ -242,7 +245,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
                     ),
                   ),
                   onTap: (isOnline && !_isCalling) // Disable tap if user is offline OR already calling
-                      ? () => _startCall(username, fcmToken!)
+                      ? () => _startCall(username, fcmToken)
                       : null, // Set onTap to null to visually and functionally disable interaction
                   enabled: isOnline && !_isCalling, // Visually disable if user is offline or already calling
                 ),

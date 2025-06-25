@@ -5,10 +5,11 @@ buildscript {
         maven(url = "https://jitpack.io")
     }
     dependencies {
-        // IMPORTANT: Updated google-services plugin to the latest stable version
-        // Always check the Firebase documentation for the absolute latest version:
-        // https://firebase.google.com/docs/android/setup
-        classpath("com.google.gms:google-services:4.4.1") // This is the Google Services plugin
+        // ... other classpath dependencies
+        // UPDATE THIS LINE:
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.0") // Change to 2.0.0
+        // ... (keep your google-services classpath)
+        classpath("com.google.gms:google-services:4.4.1")
     }
 }
 
