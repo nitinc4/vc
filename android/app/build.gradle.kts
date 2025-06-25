@@ -73,7 +73,6 @@ dependencies {
 
     // Add the dependencies for the Firebase products your app uses.
     // When using the BoM, you DO NOT specify versions for these individual Firebase libraries:
-    implementation("com.google.firebase:firebase-auth")       // For Firebase Authentication
     implementation("com.google.firebase:firebase-firestore")  // For Cloud Firestore
     implementation("com.google.firebase:firebase-messaging")  // For Firebase Cloud Messaging
     // Add any other Firebase products your app uses here (e.g., firebase-analytics, firebase-storage, etc.)
