@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:vc/screens/home_screen_connected.dart';
 import 'package:uuid/uuid.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ADD THIS IMPORT
+import 'package:shared_preferences/shared_preferences.dart'; // Keep this import for saving username
 
 class UserRegistrationScreen extends StatefulWidget {
   const UserRegistrationScreen({super.key});
@@ -19,35 +19,34 @@ class _UserRegistrationScreenState extends State<UserRegistrationScreen> {
   final Uuid _uuid = const Uuid();
 
   String? _errorMessage;
-  bool _isLoading = true; // Added for initial loading state
+  // bool _isLoading = true; // REMOVED: No longer needed for initial check
 
   @override
   void initState() {
     super.initState();
-    _checkSavedUsername(); // CHECK FOR SAVED USERNAME ON INIT
+    // REMOVED: _checkSavedUsername(); // Initial check and navigation is now handled in main.dart
   }
 
-  Future<void> _checkSavedUsername() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedUsername = prefs.getString('currentUsername');
-    if (savedUsername != null && savedUsername.isNotEmpty) {
-      // If username found, set controller text and navigate
-      _usernameController.text = savedUsername;
-      // It's crucial to ensure Firebase is initialized before navigating away
-      // In main.dart, Firebase.initializeApp() is called early, so this should be fine.
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreenConnected(currentUsername: savedUsername),
-          ),
-        );
-      }
-    }
-    setState(() {
-      _isLoading = false; // Hide loading indicator once check is complete
-    });
-  }
+  // REMOVED: _checkSavedUsername() method as it's handled by main.dart now
+  // Future<void> _checkSavedUsername() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   final savedUsername = prefs.getString('currentUsername');
+  //   if (savedUsername != null && savedUsername.isNotEmpty) {
+  //     _usernameController.text = savedUsername;
+  //     if (mounted) {
+  //       Navigator.pushReplacement(
+  //         context,
+  //         MaterialPageRoute(
+  //           builder: (context) => HomeScreenConnected(currentUsername: savedUsername),
+  //         ),
+  //       );
+  //     }
+  //   }
+  //   setState(() {
+  //     _isLoading = false;
+  //   });
+  // }
+
 
   Future<void> _registerUser() async {
     final username = _usernameController.text.trim();
@@ -104,14 +103,14 @@ class _UserRegistrationScreenState extends State<UserRegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Show a loading indicator while checking for saved username
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.tealAccent),
-        ),
-      );
-    }
+    // REMOVED: _isLoading check, as initial route is handled by main.dart
+    // if (_isLoading) {
+    //   return const Scaffold(
+    //     body: Center(
+    //       child: CircularProgressIndicator(color: Colors.tealAccent),
+    //     ),
+    //   );
+    // }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Register Username')),

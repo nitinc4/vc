@@ -8,12 +8,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:vc/main.dart';
+import 'package:vc/main.dart'; // Import your main.dart file
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    // FIX: Provide a dummy initialWidget to MyApp for testing purposes.
+    // This widget won't actually be displayed in a typical widget test,
+    // but the MyApp constructor requires it.
+    await tester.pumpWidget(const MyApp(initialWidget: Text('Test Initial Widget')));
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

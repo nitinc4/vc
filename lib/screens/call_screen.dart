@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:vc/main.dart'; // Import main.dart to access activeChannelIds
 
 // Your Agora App ID
 const String appId = 'eebc91dcf2bc42ad9dbdc13c09f1a618'; // Replace with your actual Agora App ID
@@ -36,15 +38,13 @@ class _CallScreenState extends State<CallScreen> {
     super.initState();
     WakelockPlus.enable(); // Keep screen on during call
 
-    // Determine the final local UID: use provided widget.uid, or generate random if 0
     _finalLocalUid = widget.uid != 0 ? widget.uid : Random().nextInt(99999999);
-    _remoteUid = widget.initialRemoteUid; // Initialize with provided remote UID if any
+    _remoteUid = widget.initialRemoteUid;
 
     _initAgora();
   }
 
   Future<void> _initAgora() async {
-    // Request permissions again just in case, though main.dart should handle initial requests
     await [Permission.microphone, Permission.camera].request();
 
     _engine = createAgoraRtcEngine();
@@ -54,16 +54,17 @@ class _CallScreenState extends State<CallScreen> {
       RtcEngineEventHandler(
         onJoinChannelSuccess: (connection, elapsed) {
           setState(() => _joined = true);
-          print('✅ Joined channel ${widget.channelId}, Local UID: $_finalLocalUid');
+          debugPrint('✅ Joined channel ${widget.channelId}, Local UID: $_finalLocalUid');
+          activeChannelIds.add(widget.channelId);
+          debugPrint('DEBUG: Channel ${widget.channelId} added to activeChannelIds on onJoinChannelSuccess.');
         },
         onUserJoined: (connection, remoteUid, elapsed) {
-          print('👤 Remote user joined: $remoteUid');
+          debugPrint('👤 Remote user joined: $remoteUid');
           setState(() => _remoteUid = remoteUid);
         },
         onUserOffline: (connection, remoteUid, reason) {
-          print('👋 User left: $remoteUid, Reason: $reason');
+          debugPrint('👋 User left: $remoteUid, Reason: $reason');
           setState(() => _remoteUid = null);
-          // Optional: Show a message that the other party has left
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('User $remoteUid has left the call.')),
@@ -71,12 +72,12 @@ class _CallScreenState extends State<CallScreen> {
           }
         },
         onLeaveChannel: (connection, stats) {
-          print('📴 Left channel');
-          // No need to pop here, Navigator.pop(context) will trigger this.
+          debugPrint('📴 Left channel');
+          activeChannelIds.remove(widget.channelId);
+          debugPrint('DEBUG: Channel ${widget.channelId} removed from activeChannelIds on onLeaveChannel.');
         },
         onError: (errorType, errMsg) {
-          print('❌ Agora error: $errorType - $errMsg');
-          // Optional: Show an error dialog
+          debugPrint('❌ Agora error: $errorType - $errMsg');
           if (mounted) {
             showDialog(
               context: context,
@@ -94,20 +95,18 @@ class _CallScreenState extends State<CallScreen> {
           }
         },
         onRemoteVideoStateChanged: (connection, remoteUid, state, reason, elapsed) {
-          print('Remote video state changed for $remoteUid: $state, reason: $reason');
-          // You can use this to show loading indicators or blur effects if video is frozen/off
+          debugPrint('Remote video state changed for $remoteUid: $state, reason: $reason');
         },
       ),
     );
 
     await _engine.enableVideo();
-    await _engine.startPreview(); // Start local video preview before joining
+    await _engine.startPreview();
 
-    // Join the channel
     await _engine.joinChannel(
-      token: '', // Leave empty if you are not using Agora tokens (only App ID)
+      token: '',
       channelId: widget.channelId,
-      uid: _finalLocalUid, // Use the determined local UID
+      uid: _finalLocalUid,
       options: const ChannelMediaOptions(
         clientRoleType: ClientRoleType.clientRoleBroadcaster,
         channelProfile: ChannelProfileType.channelProfileCommunication,
@@ -117,9 +116,11 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
-    WakelockPlus.disable(); // Allow screen to turn off
+    WakelockPlus.disable();
     _engine.leaveChannel();
-    _engine.release(); // Release the Agora engine resources
+    _engine.release();
+    activeChannelIds.remove(widget.channelId);
+    debugPrint('DEBUG: Channel ${widget.channelId} removed from activeChannelIds on dispose.');
     super.dispose();
   }
 
@@ -135,7 +136,7 @@ class _CallScreenState extends State<CallScreen> {
     return AgoraVideoView(
       controller: VideoViewController(
         rtcEngine: _engine,
-        canvas: const VideoCanvas(uid: 0), // Use UID 0 for local video rendering always
+        canvas: const VideoCanvas(uid: 0),
       ),
     );
   }
@@ -145,7 +146,7 @@ class _CallScreenState extends State<CallScreen> {
       return AgoraVideoView(
         controller: VideoViewController.remote(
           rtcEngine: _engine,
-          canvas: VideoCanvas(uid: _remoteUid!), // Render remote user's video
+          canvas: VideoCanvas(uid: _remoteUid!),
           connection: RtcConnection(channelId: widget.channelId),
         ),
       );
@@ -168,82 +169,98 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Remote video (main view)
-          Positioned.fill(child: _renderRemoteVideo()),
+    // UPDATED: WillPopScope to prevent navigating away while call is active
+    return WillPopScope(
+      onWillPop: () async {
+        // If the current channelId is still in the activeChannelIds set, prevent popping
+        if (activeChannelIds.contains(widget.channelId)) {
+          debugPrint('DEBUG: Preventing pop from CallScreen: Channel ${widget.channelId} is active in global state.');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please end the call using the red button.')),
+          );
+          return false; // Prevent pop
+        }
+        debugPrint('DEBUG: Allowing pop from CallScreen: Channel ${widget.channelId} is not active in global state.');
+        return true; // Allow pop
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            // Remote video (main view)
+            Positioned.fill(child: _renderRemoteVideo()),
 
-          // Local preview (picture-in-picture)
-          Positioned(
-            top: 40,
-            right: 20,
-            width: 120,
-            height: 160,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 2),
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.black, // Background color when no video/camera off
-              ),
-              clipBehavior: Clip.antiAlias, // Clip children to border radius
-              child: _renderLocalPreview(),
-            ),
-          ),
-
-          // Control buttons
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 30),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Mute/Unmute Audio
-                  FloatingActionButton(
-                    heroTag: 'mute',
-                    backgroundColor: Colors.white,
-                    child: Icon(_muted ? Icons.mic_off : Icons.mic, color: Colors.black),
-                    onPressed: () {
-                      setState(() => _muted = !_muted);
-                      _engine.muteLocalAudioStream(_muted);
-                    },
-                  ),
-                  // End Call
-                  FloatingActionButton(
-                    heroTag: 'end',
-                    backgroundColor: Colors.red,
-                    child: const Icon(Icons.call_end, color: Colors.white),
-                    onPressed: () {
-                      Navigator.pop(context); // Go back to the previous screen
-                    },
-                  ),
-                  // Toggle Local Video
-                  FloatingActionButton(
-                    heroTag: 'video',
-                    backgroundColor: Colors.white,
-                    child: Icon(_videoOff ? Icons.videocam_off : Icons.videocam, color: Colors.black),
-                    onPressed: () {
-                      setState(() => _videoOff = !_videoOff);
-                      _engine.enableLocalVideo(!_videoOff);
-                      _engine.muteLocalVideoStream(_videoOff); // Mute stream visually
-                    },
-                  ),
-                  // Switch Camera
-                  FloatingActionButton(
-                    heroTag: 'switch',
-                    backgroundColor: Colors.white,
-                    child: const Icon(Icons.cameraswitch, color: Colors.black),
-                    onPressed: () {
-                      _engine.switchCamera();
-                    },
-                  ),
-                ],
+            // Local preview (picture-in-picture)
+            Positioned(
+              top: 40,
+              right: 20,
+              width: 120,
+              height: 160,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.black,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _renderLocalPreview(),
               ),
             ),
-          ),
-        ],
+
+            // Control buttons
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 30),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Mute/Unmute Audio
+                    FloatingActionButton(
+                      heroTag: 'mute',
+                      backgroundColor: Colors.white,
+                      child: Icon(_muted ? Icons.mic_off : Icons.mic, color: Colors.black),
+                      onPressed: () {
+                        setState(() => _muted = !_muted);
+                        _engine.muteLocalAudioStream(_muted);
+                      },
+                    ),
+                    // End Call
+                    FloatingActionButton(
+                      heroTag: 'end',
+                      backgroundColor: Colors.red,
+                      child: const Icon(Icons.call_end, color: Colors.white),
+                      onPressed: () {
+                        // This button explicitly ends the call and pops the screen.
+                        Navigator.pop(context);
+                      },
+                    ),
+                    // Toggle Local Video
+                    FloatingActionButton(
+                      heroTag: 'video',
+                      backgroundColor: Colors.white,
+                      child: Icon(_videoOff ? Icons.videocam_off : Icons.videocam, color: Colors.black),
+                      onPressed: () {
+                        setState(() => _videoOff = !_videoOff);
+                        _engine.enableLocalVideo(!_videoOff);
+                        _engine.muteLocalVideoStream(_videoOff);
+                      },
+                    ),
+                    // Switch Camera
+                    FloatingActionButton(
+                      heroTag: 'switch',
+                      backgroundColor: Colors.white,
+                      child: const Icon(Icons.cameraswitch, color: Colors.black),
+                      onPressed: () {
+                        _engine.switchCamera();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

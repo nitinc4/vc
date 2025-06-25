@@ -1,15 +1,15 @@
+// android/build.gradle.kts (Root Project)
 buildscript {
     repositories {
         google()
         mavenCentral()
-        maven(url = "https://jitpack.io")
+        maven(url = "https://jitpack.io") // Keep if you explicitly need Jitpack
     }
     dependencies {
-        // ... other classpath dependencies
-        // UPDATE THIS LINE:
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.0") // Change to 2.0.0
-        // ... (keep your google-services classpath)
-        classpath("com.google.gms:google-services:4.4.1")
+        classpath("com.android.tools.build:gradle:8.7.0") // Or your current AGP version, ensure it's up to date
+        // UPDATE THIS LINE: Kotlin Gradle plugin to 2.0.0 for compatibility
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.0")
+        classpath("com.google.gms:google-services:4.4.1") // Google Services plugin
     }
 }
 
@@ -17,6 +17,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // If you had jcenter() here, ensure it's removed as it's deprecated.
     }
 }
 

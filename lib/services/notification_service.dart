@@ -3,69 +3,85 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vc/main.dart'; // Corrected import to access processedCallKitIds
+import 'package:vc/main.dart'; // Corrected import to access processedCallKitIds, activeChannelIds, lastIncomingCallTime
 import 'package:flutter/foundation.dart'; // Added for debugPrint
 
 class LocalNotificationService {
   static Future<void> showIncomingCallNotification(String callerId, String channelId, {String? incomingCallkitId}) async {
-    final uuid = incomingCallkitId ?? const Uuid().v4(); // Use provided ID from FCM or generate new if not provided
+    final uuid = incomingCallkitId ?? const Uuid().v4();
 
-    // CRITICAL DEBOUNCE: Check if this CallKit ID has already been processed to avoid duplicate notifications
-    if (processedCallKitIds.contains(uuid)) { // Updated variable name
-      debugPrint('DEBUG: showIncomingCallNotification: Skipping duplicate notification for CallKit ID: $uuid. Already processed in this app session.');
+    // ROBUSTNESS CHECK 1 (Highest Priority): Discard if Call Screen is already active (any call)
+    if (activeChannelIds.isNotEmpty) {
+      debugPrint('DEBUG: Incoming call notification BLOCKED (Active Call Screen): A call is already ongoing on channel(s): $activeChannelIds. Call ID: $uuid, Channel: $channelId.');
       return;
     }
 
-    // Add the ID to the set to mark it as processed before attempting to show the notification
-    processedCallKitIds.add(uuid); // Updated variable name
-    debugPrint('DEBUG: showIncomingCallNotification: Preparing to show notification for CallKit ID: $uuid');
+    // ROBUSTNESS CHECK 2: Debounce for duplicate notification UUIDs (within session)
+    if (processedCallKitIds.contains(uuid)) {
+      debugPrint('DEBUG: Incoming call notification BLOCKED (Duplicate CallKit ID): Already processed notification for ID: $uuid. Channel: $channelId.');
+      return;
+    }
+
+    // ROBUSTNESS CHECK 3: Implement 10-second cooldown period between notifications
+    if (lastIncomingCallTime != null && DateTime.now().difference(lastIncomingCallTime!) < incomingCallCooldownDuration) {
+      final Duration remainingCooldown = incomingCallCooldownDuration - DateTime.now().difference(lastIncomingCallTime!);
+      debugPrint('DEBUG: Incoming call notification BLOCKED (Cooldown Active): Another notification shown recently. Remaining cooldown: ${remainingCooldown.inSeconds}s. Call ID: $uuid, Channel: $channelId.');
+      return;
+    }
+    
+    // If all checks pass, proceed to show notification
+    // Update last incoming call time only if the notification is about to be shown
+    lastIncomingCallTime = DateTime.now();
+
+
+    // Add the ID to the set BEFORE showing the notification (for current session debounce)
+    processedCallKitIds.add(uuid);
+    debugPrint('DEBUG: showIncomingCallNotification: Preparing to show CallKit Incoming UI for Call ID: $uuid, Channel: $channelId.');
 
 
     final params = CallKitParams.fromJson({
-      'id': uuid, // Use the ID passed from FCM (or generated)
+      'id': uuid,
       'nameCaller': callerId,
       'appName': 'VideoCallApp',
-      'avatar': 'https://i.pravatar.cc/100', // Consider using a real avatar or placeholder
-      'handle': callerId, // Usually the number or identifier of the caller
-      'type': 1, // Incoming call
-      'duration': 30000, // 30 seconds timeout for the CallKit UI
+      'avatar': 'https://i.pravatar.cc/100',
+      'handle': callerId,
+      'type': 1,
+      'duration': 30000,
       'textAccept': 'Accept',
       'textDecline': 'Decline',
       'extra': {
-        'channelId': channelId, // Important: pass channelId here for CallKit
-        'callerId': callerId,   // Important: pass callerId here for CallKit
-        'callkitId': uuid,      // Ensure it's passed back in extra for CallKit events from plugin
+        'channelId': channelId,
+        'callerId': callerId,
+        'callkitId': uuid,
       },
       'android': {
-        'isCustomNotification': true, // Use custom layout/behavior
+        'isCustomNotification': true,
         'isShowLogo': false,
         'isShowCallback': true,
-        'ringtonePath': 'system_ringtone_default', // Ensure this ringtone exists or provide custom
+        'ringtonePath': 'system_ringtone_default',
         'backgroundColor': '#0955fa',
         'actionColor': '#ffffff',
         'isShowMissedCallNotification': true,
-        // These 'action' and 'uri' are critical for Android to launch your app when CallKit is accepted.
-        // They must correspond to an <intent-filter> in your AndroidManifest.xml's MainActivity.
         'action': 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_ACCEPT',
-        'uri': 'vcapp://call', // This URI should match AndroidManifest data tag for MainActivity
+        'uri': 'vcapp://call',
       },
       'ios': {
-        'handleType': 'generic', // Use 'generic' for general calls, 'phoneNumber' or 'emailAddress' if applicable
+        'handleType': 'generic',
         'supportsHolding': false,
         'supportsDTMF': false,
         'supportsGrouping': false,
         'supportsUngrouping': false,
-        'ringtonePath': 'Ringtone.caf', // Ensure this exists in your iOS project (e.g., in Runner directory)
+        'ringtonePath': 'Ringtone.caf',
       }
     });
 
     try {
       await FlutterCallkitIncoming.showCallkitIncoming(params);
-      debugPrint('DEBUG: showIncomingCallNotification: Successfully showed CallKit Incoming UI for ID: $uuid');
+      debugPrint('DEBUG: showIncomingCallNotification: Successfully showed CallKit Incoming UI for ID: $uuid, Channel: $channelId.');
     } catch (e) {
-      debugPrint('ERROR: Failed to show CallKit Incoming UI for ID: $uuid - $e');
+      debugPrint('ERROR: Failed to show CallKit Incoming UI for ID: $uuid, Channel: $channelId - $e');
       // If showing fails, remove from processed IDs so it can be retried if another FCM comes
-      processedCallKitIds.remove(uuid); // Updated variable name
+      processedCallKitIds.remove(uuid);
     }
   }
 }
@@ -73,11 +89,11 @@ class LocalNotificationService {
 /// Called when FCM arrives in background
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(); // Ensure Firebase is initialized for background messages
+  await Firebase.initializeApp();
   final data = message.data;
-  final callerId = data['callerId'] ?? 'Unknown Caller'; // Provide a better default if possible
-  final channelId = data['channelId'] ?? 'default_channel'; // Fallback, but should always be provided by backend
-  final callkitId = data['callkitId']; // Get CallKit ID from FCM
+  final callerId = data['callerId'] ?? 'Unknown Caller';
+  final channelId = data['channelId'] ?? 'default_channel';
+  final callkitId = data['callkitId'];
   debugPrint('DEBUG: Handling background FCM: Caller: $callerId, Channel: $channelId, CallKit ID: $callkitId, Message Data: $data');
-  await LocalNotificationService.showIncomingCallNotification(callerId, channelId, incomingCallkitId: callkitId); // Pass the ID
+  await LocalNotificationService.showIncomingCallNotification(callerId, channelId, incomingCallkitId: callkitId);
 }

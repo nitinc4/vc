@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 // ignore: unused_import
 import 'package:firebase_core/firebase_core.dart';
-import 'package:uuid/uuid.dart'; // Make sure this is in your pubspec.yaml
-import 'package:vc/screens/call_screen.dart'; // Corrected import
-import 'package:vc/services/notification_service.dart'; // Added import for notification_service
-import 'package:vc/services/permissions_service.dart'; // Added import for permissions_service
-import 'package:vc/screens/user_registration_screen.dart'; // Added import for user_registration_screen
+import 'package:uuid/uuid.dart';
+import 'package:vc/screens/call_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart'; // Import for debugPrint
+import 'package:vc/main.dart'; // Import main.dart to access activeChannelIds
 
 class HomeScreenConnected extends StatefulWidget {
   final String currentUsername;
@@ -38,34 +37,49 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
   Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
     if (_isCalling) {
       debugPrint('DEBUG: Call initiation already in progress. Ignoring duplicate tap.');
-      return; // Prevent re-entry if _isCalling is already true
+      return;
     }
     setState(() {
-      _isCalling = true; // Immediately set to true to disable button and prevent re-entry
+      _isCalling = true;
     });
 
     final uuid = const Uuid();
-    final channelId = uuid.v4(); // Unique channel ID for Agora
-    final callkitUuid = uuid.v4(); // Unique CallKit ID for flutter_callkit_incoming notification
+    final List<String> sortedUsernames = [widget.currentUsername, receiverUsername]..sort();
+    final String channelId = '${sortedUsernames[0]}_${sortedUsernames[1]}'; // Consistent channel ID
+    
+    // NEW: Generate callkitUuid from sorted usernames as well, distinguishing it
+    final String callkitUuid = '${sortedUsernames[0]}_${sortedUsernames[1]}_callkit_notification'; // Consistent CallKit ID
 
-    // Get the caller's UID
+    // Check if this channelId is already active
+    if (activeChannelIds.contains(channelId)) {
+      debugPrint('DEBUG: Call to $receiverUsername already active on channel $channelId. Not sending notification.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Call to $receiverUsername is already active.')),
+        );
+      }
+      setState(() {
+        _isCalling = false;
+      });
+      return;
+    }
+
     final callerUid = _generateUidFromUsername(widget.currentUsername);
 
     debugPrint('DEBUG: CALL INITIATION START');
     debugPrint('DEBUG: Current User (Caller) Username: ${widget.currentUsername}');
-    debugPrint('DEBUG: Current User (Caller) FCM Token: ${await FirebaseMessaging.instance.getToken()}'); // Added for debugging
+    debugPrint('DEBUG: Current User (Caller) FCM Token: ${await FirebaseMessaging.instance.getToken()}');
     debugPrint('DEBUG: Intended Receiver Username: $receiverUsername');
-    debugPrint('DEBUG: Intended Receiver FCM Token: $receiverFcmToken'); // Added for debugging
+    debugPrint('DEBUG: Intended Receiver FCM Token: $receiverFcmToken');
     debugPrint('DEBUG: Generated Channel ID: $channelId');
-    debugPrint('DEBUG: Generated CallKit UUID: $callkitUuid');
+    debugPrint('DEBUG: Generated CallKit UUID: $callkitUuid'); // Now derived from usernames
 
     try {
-      // Create call document in Firestore
       await FirebaseFirestore.instance.collection('calls').doc(channelId).set({
         'callerId': widget.currentUsername,
         'receiverId': receiverUsername,
         'channelId': channelId,
-        'callkitId': callkitUuid, // Store CallKit ID in Firestore
+        'callkitId': callkitUuid, // Store the derived CallKit ID
         'timestamp': FieldValue.serverTimestamp(),
         'status': 'initiated',
       });
@@ -78,21 +92,20 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         );
       }
       setState(() {
-        _isCalling = false; // Reset state on error
+        _isCalling = false;
       });
-      return; // Stop if Firestore operation fails
+      return;
     }
 
     try {
-      // Send push message with unique channelId and callerId in data payload
       debugPrint('DEBUG: Attempting to send push message...');
       await sendPushMessage(
         receiverFcmToken,
         title: 'Incoming Call',
         body: '${widget.currentUsername} is calling you...',
-        callerId: widget.currentUsername, // Pass callerId for CallKit display
-        channelId: channelId, // Pass the unique channelId
-        callkitId: callkitUuid, // Pass CallKit ID to FCM for receiver to use
+        callerId: widget.currentUsername,
+        channelId: channelId,
+        callkitId: callkitUuid, // Pass the derived CallKit ID
       );
       debugPrint('DEBUG: Push message function called. Waiting for response...');
     } catch (e) {
@@ -103,30 +116,27 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         );
       }
       setState(() {
-        _isCalling = false; // Reset state on error
+        _isCalling = false;
       });
-      return; // Stop if FCM sending fails
+      return;
     }
 
-    // Navigate to the call screen for the caller
-    if (mounted) { // Check if widget is still mounted before navigation
+    if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => CallScreen(
             channelId: channelId,
-            uid: callerUid, // Use the generated UID for the caller
+            uid: callerUid,
           ),
         ),
       ).then((_) {
-        // This 'then' block executes when CallScreen is popped/disposed
         debugPrint('DEBUG: CallScreen popped. Resetting _isCalling state.');
         setState(() {
-          _isCalling = false; // Reset state when call ends
+          _isCalling = false;
         });
       });
     } else {
-      // If widget unmounted before push, ensure _isCalling is reset
       debugPrint('DEBUG: Widget unmounted before navigation. Resetting _isCalling state.');
       setState(() {
         _isCalling = false;
@@ -139,7 +149,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
     required String body,
     required String callerId,
     required String channelId,
-    String? callkitId, // Accept CallKit ID
+    String? callkitId,
   }) async {
     final url = Uri.parse(
       'https://us-central1-vcall-30196.cloudfunctions.net/sendCallNotification',
@@ -155,7 +165,7 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
           'body': body,
           'callerId': callerId,
           'channelId': channelId,
-          'callkitId': callkitId, // Include in FCM data payload
+          'callkitId': callkitId,
         }),
       );
 
@@ -163,12 +173,11 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
         debugPrint('✅ Push sent successfully');
       } else {
         debugPrint('❌ Push failed: ${response.statusCode} ${response.body}');
-        // Throw an exception to be caught by the calling function
         throw Exception('Push failed: ${response.statusCode} ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ Error sending push message: $e');
-      rethrow; // Re-throw to be caught by _startCall's try-catch
+      rethrow;
     }
   }
 
@@ -192,7 +201,6 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
             );
           }
 
-          // Filter out the current user
           final users = snapshot.data!.docs.where((doc) => doc.id != widget.currentUsername).toList();
 
           if (users.isEmpty) {
@@ -244,10 +252,10 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
                       size: 28,
                     ),
                   ),
-                  onTap: (isOnline && !_isCalling) // Disable tap if user is offline OR already calling
-                      ? () => _startCall(username, fcmToken)
-                      : null, // Set onTap to null to visually and functionally disable interaction
-                  enabled: isOnline && !_isCalling, // Visually disable if user is offline or already calling
+                  onTap: (isOnline && !_isCalling)
+                      ? () => _startCall(username, fcmToken!)
+                      : null,
+                  enabled: isOnline && !_isCalling,
                 ),
               );
             },
