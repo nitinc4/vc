@@ -8,26 +8,27 @@ exports.sendCallNotification = functions.https.onRequest(async (req, res) => {
     return res.status(405).send('Method Not Allowed');
   }
 
-  const { fcmToken, callerId, channelId } = req.body;
+  // ✅ Extract callkitId from the request body sent by the Flutter app
+  const { fcmToken, callerId, channelId, callkitId } = req.body;
 
   if (!fcmToken || !callerId || !channelId) {
     console.error("Missing essential parameters: fcmToken, callerId, or channelId.");
     return res.status(400).send("Missing essential parameters for call notification (fcmToken, callerId, channelId)");
   }
 
- // Your Firebase Cloud Function (index.js)
-const message = {
+  const message = {
     token: fcmToken,
     data: { // ONLY the 'data' field should be present for CallKit
         callerId: callerId,
         channelId: channelId,
+        callkitId: callkitId || 'unknown_callkit_id', // ✅ Pass callkitId to FCM data payload
     },
     android: {
-        priority: "high",
+        priority: "high", // Ensures timely delivery
     },
-    // DO NOT include a 'notification' field here:
+    // DO NOT include a 'notification' field here; it would cause duplicate system notifications.
     // notification: { ... }
-};
+  };
 
   try {
     const response = await admin.messaging().send(message);

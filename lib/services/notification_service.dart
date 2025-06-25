@@ -5,11 +5,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 
 class LocalNotificationService {
-  static Future<void> showIncomingCallNotification(String callerId, String channelId) async {
-    final uuid = const Uuid().v4();
+  static Future<void> showIncomingCallNotification(String callerId, String channelId, {String? incomingCallkitId}) async {
+    final uuid = incomingCallkitId ?? const Uuid().v4(); // Use provided ID from FCM or generate new
 
     final params = CallKitParams.fromJson({
-      'id': uuid, // Unique ID for this specific CallKit notification
+      'id': uuid, // Use the ID passed from FCM (or generated)
       'nameCaller': callerId,
       'appName': 'VideoCallApp',
       'avatar': 'https://i.pravatar.cc/100', // Consider using a real avatar or placeholder
@@ -21,6 +21,7 @@ class LocalNotificationService {
       'extra': {
         'channelId': channelId, // Important: pass channelId here for CallKit
         'callerId': callerId,   // Important: pass callerId here for CallKit
+        'callkitId': uuid,      // Ensure it's passed back in extra for CallKit events from plugin
       },
       'android': {
         'isCustomNotification': true, // Use custom layout/behavior
@@ -30,8 +31,10 @@ class LocalNotificationService {
         'backgroundColor': '#0955fa',
         'actionColor': '#ffffff',
         'isShowMissedCallNotification': true,
-        'action': 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_ACCEPT', // Or ACTION_CALL_INCOMING depending on desired launch trigger
-        'uri': 'vcapp://call', // Match the data scheme/host from AndroidManifest.xml
+        // These 'action' and 'uri' are critical for Android to launch your app when CallKit is accepted.
+        // They must correspond to an <intent-filter> in your AndroidManifest.xml's MainActivity.
+        'action': 'com.hiennv.flutter_callkit_incoming.ACTION_CALL_ACCEPT',
+        'uri': 'vcapp://call', // This URI should match AndroidManifest data tag for MainActivity
       },
       'ios': {
         'handleType': 'generic', // Use 'generic' for general calls, 'phoneNumber' or 'emailAddress' if applicable
@@ -54,6 +57,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
   final callerId = data['callerId'] ?? 'Unknown Caller'; // Provide a better default if possible
   final channelId = data['channelId'] ?? 'default_channel'; // Fallback, but should always be provided by backend
-  print('DEBUG: Handling background FCM: Caller: $callerId, Channel: $channelId, Message Data: $data'); // Debugging
-  await LocalNotificationService.showIncomingCallNotification(callerId, channelId);
+  final callkitId = data['callkitId']; // Get CallKit ID from FCM
+  print('DEBUG: Handling background FCM: Caller: $callerId, Channel: $channelId, CallKit ID: $callkitId, Message Data: $data');
+  await LocalNotificationService.showIncomingCallNotification(callerId, channelId, incomingCallkitId: callkitId); // Pass the ID
 }
