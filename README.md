@@ -1,16 +1,38 @@
-# vc
+# 📞 Flutter Video Call App
 
-A new Flutter project.
+A modern, production-ready one-on-one video calling app built with **Flutter**, featuring seamless real-time communication using **Agora**, and full-featured incoming call notifications powered by **Firebase Cloud Messaging** and `flutter_callkit_incoming`.
 
-## Getting Started
+## 🚀 Features
 
-This project is a starting point for a Flutter application.
+- 📹 Real-time 1-to-1 video calling via **Agora SDK**
+- 🔔 Incoming call notifications with **FCM**
+- 📱 Android full-screen call UI using `flutter_callkit_incoming`
+- 🌙 Dark mode modern UI
+- 🧠 Auto-saved username via `SharedPreferences`
+- 🎵 Ringtone with actionable Accept/Decline call options
+- 🔐 Firebase integration for secure token storage and call signaling
 
-A few resources to get you started if this is your first Flutter project:
+## 📲 Try the App
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+You can **download and run the fully functional app** from this link:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+👉 [Google Drive link to Functional](https://drive.google.com/drive/folders/11aVxeWyQJjLxcZMzF7VX_6A3RrXb2Y12?usp=sharing)
+
+
+## 🛠️ Tech Stack
+
+- **Flutter (Dart)**
+- **Firebase**
+  - Cloud Messaging (FCM)
+  - Firestore
+- **Agora RTC SDK**
+- **flutter_callkit_incoming**
+- **flutter_local_notifications** (optional fallback)
+
+## 🔧 Local Setup (If You Want to Build Yourself)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/nitinc4/vc.git
+cd vc
