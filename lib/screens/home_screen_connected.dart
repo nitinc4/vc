@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-// ignore: unused_import
-import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vc/screens/call_screen.dart';
 import 'dart:convert';
@@ -22,6 +20,7 @@ class HomeScreenConnected extends StatefulWidget {
 class _HomeScreenConnectedState extends State<HomeScreenConnected> {
   late final CollectionReference usersRef;
   bool _isCalling = false; // State to prevent multiple call initiations
+  final TextEditingController _usernameController = TextEditingController();
 
   @override
   void initState() {
@@ -29,20 +28,87 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
     usersRef = FirebaseFirestore.instance.collection('users');
   }
 
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+
   // Helper to generate a consistent UID for Agora from username
   int _generateUidFromUsername(String username) {
     return username.hashCode.abs() % 4294967295; // Max 32-bit unsigned integer
   }
 
-  Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
-    if (_isCalling) {
-      debugPrint('DEBUG: Call initiation already in progress. Ignoring duplicate tap.');
+  Future<void> _initiateCallWithInputUsername() async {
+    final targetUsername = _usernameController.text.trim();
+    if (targetUsername.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a username to call.')),
+        );
+      }
       return;
     }
+
+    if (targetUsername == widget.currentUsername) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot call yourself.')),
+        );
+      }
+      return;
+    }
+
     setState(() {
-      _isCalling = true;
+      _isCalling = true; // Set calling state immediately
     });
 
+    try {
+      // Fetch the FCM token for the target username
+      final userDoc = await usersRef.doc(targetUsername).get();
+
+      if (!userDoc.exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('User "$targetUsername" not found.')),
+          );
+        }
+        setState(() {
+          _isCalling = false; // Reset calling state
+        });
+        return;
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final receiverFcmToken = userData['fcmToken'] as String?;
+
+      if (receiverFcmToken == null || receiverFcmToken.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('User "$targetUsername" is currently offline or has no FCM token.')),
+          );
+        }
+        setState(() {
+          _isCalling = false; // Reset calling state
+        });
+        return;
+      }
+
+      await _startCall(targetUsername, receiverFcmToken);
+    } catch (e) {
+      debugPrint('ERROR: Error initiating call with input: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to initiate call: $e')),
+        );
+      }
+      setState(() {
+        _isCalling = false; // Reset calling state on error
+      });
+    }
+  }
+
+  Future<void> _startCall(String receiverUsername, String receiverFcmToken) async {
     final uuid = const Uuid();
     final List<String> sortedUsernames = [widget.currentUsername, receiverUsername]..sort();
     final String channelId = '${sortedUsernames[0]}_${sortedUsernames[1]}'; // Consistent channel ID
@@ -185,82 +251,58 @@ class _HomeScreenConnectedState extends State<HomeScreenConnected> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Welcome, ${widget.currentUsername}')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: usersRef.snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Colors.tealAccent));
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text('No users found', style: TextStyle(color: Colors.grey)),
-            );
-          }
-
-          final users = snapshot.data!.docs.where((doc) => doc.id != widget.currentUsername).toList();
-
-          if (users.isEmpty) {
-            return const Center(
-              child: Text('No other users online', style: TextStyle(color: Colors.grey)),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: users.length,
-            itemBuilder: (context, index) {
-              final userDoc = users[index];
-              final username = userDoc['username'] as String;
-              final fcmToken = userDoc['fcmToken'] as String?;
-
-              final isOnline = fcmToken != null && fcmToken.isNotEmpty;
-
-              return Card(
-                color: isOnline ? Colors.grey[900] : Colors.grey[800],
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  title: Text(
-                    username,
-                    style: TextStyle(
-                      color: isOnline ? Colors.white : Colors.grey[500],
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Text(
-                    isOnline ? 'Online' : 'Offline',
-                    style: TextStyle(
-                      color: isOnline ? Colors.greenAccent : Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isOnline ? Colors.tealAccent.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      isOnline ? Icons.video_call : Icons.videocam_off,
-                      color: isOnline ? Colors.tealAccent : Colors.grey,
-                      size: 28,
-                    ),
-                  ),
-                  onTap: (isOnline && !_isCalling)
-                      ? () => _startCall(username, fcmToken!)
-                      : null,
-                  enabled: isOnline && !_isCalling,
+        title: Text('Logged in as: ${widget.currentUsername}')), // Modified title
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: _usernameController,
+              decoration: InputDecoration(
+                labelText: 'Enter username to call',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            },
-          );
-        },
+                filled: true,
+                fillColor: Colors.grey[800],
+                labelStyle: const TextStyle(color: Colors.white70),
+              ),
+              style: const TextStyle(color: Colors.white),
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (value) {
+                if (!_isCalling) {
+                  _initiateCallWithInputUsername();
+                }
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _isCalling ? null : _initiateCallWithInputUsername,
+              icon: _isCalling
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.video_call),
+              label: Text(_isCalling ? 'Calling...' : 'Call User'),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.teal,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
