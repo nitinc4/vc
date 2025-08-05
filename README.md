@@ -16,7 +16,7 @@ A modern, production-ready one-on-one video calling app built with **Flutter**, 
 
 You can **download and run the fully functional app** from this link:
 
-👉 [Google Drive link to Functional](https://drive.google.com/drive/folders/11aVxeWyQJjLxcZMzF7VX_6A3RrXb2Y12?usp=sharing)
+👉 [Google Drive link to Functional App](https://drive.google.com/drive/folders/11aVxeWyQJjLxcZMzF7VX_6A3RrXb2Y12?usp=sharing)
 
 
 ## 🛠️ Tech Stack
